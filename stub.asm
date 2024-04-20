@@ -260,19 +260,21 @@ check_import_dll_crc_apphelp:
     jmp     imported_dll
 
 call_loadlibrary_1:
+    push    rcx
+
     push    r15
     mov     r15, rsp                ; save rsp
     and     rsp, -16                ; 16 bytes alignment
 
-    push    rcx
     sub     rsp, 0x20               ; 32 bytes of shadow space
     mov     rcx, r14
     call    qword [rbp - 0x10]      ; LoadLibraryA
     add     rsp, 0x20               ; remove 32 bytes of shadow space
-    pop     rcx
 
     mov     rsp, r15                ; load rsp
     pop     r15
+
+    pop     rcx
 
 imported_dll:
     mov     rbx, rax    
