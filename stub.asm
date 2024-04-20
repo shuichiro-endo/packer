@@ -507,21 +507,21 @@ check_forwarder_dll_name_crc:
 check_forwarder_dll_name_crc_ntdll:
     mov     r12, 0xC6EF63DE
     cmp     r12, r13                ; ntdll crc32 hash
-    jne     check_import_dll_crc_kernel32
+    jne     check_forwarder_dll_name_crc_kernel32
     mov     rax, qword [rbp + 0x20]
     jmp     imported_forwarder_dll
 
 check_forwarder_dll_name_crc_kernel32:
     mov     r12, 0x204C64E5
     cmp     r12, r13                ; kernel32 crc32 hash
-    jne     check_import_dll_crc_kernelbase
+    jne     check_forwarder_dll_name_crc_kernelbase
     mov     rax, qword [rbp + 0x18]
     jmp     imported_forwarder_dll
 
 check_forwarder_dll_name_crc_kernelbase:
     mov     r12, 0x0C8ED797
     cmp     r12, r13                ; kernelbase crc32 hash
-    jne     check_import_dll_crc_apphelp
+    jne     check_forwarder_dll_name_crc_apphelp
     mov     rax, qword [rbp + 0x10]
     jmp     imported_forwarder_dll
 
