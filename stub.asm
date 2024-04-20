@@ -533,6 +533,7 @@ check_forwarder_dll_name_crc_apphelp:
     jmp     imported_forwarder_dll
 
 call_loadlibrary_2:
+    push    r11
     push    r15
     mov     r15, rsp                ; save rsp
     and     rsp, -16                ; 16 bytes alignment
@@ -544,6 +545,7 @@ call_loadlibrary_2:
 
     mov     rsp, r15                ; load rsp
     pop     r15
+    pop     r11
 
 imported_forwarder_dll:
     mov     rcx, rax                ; forwarder dll base address
