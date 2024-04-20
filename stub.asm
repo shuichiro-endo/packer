@@ -12,6 +12,7 @@ global _main
 section .text
 
 _main:
+    sub     rsp, 8                 ; 16 bytes alignment
     pushaq                         ; push registers macro
 
     ; save 1 pe image base address
@@ -45,7 +46,8 @@ _main:
     add     rsp, 0x48
 
     popaq                          ; pop registers macro
-    jmp     qword [rsp - 0xC8]     ; jump oep
+    add     rsp, 8
+    jmp     qword [rsp - 0xD0]     ; jump oep
 
 get_address:
     pushaq
@@ -105,13 +107,18 @@ get_address:
 recover_nt_header_1:
     pushaq
 
+    mov     r15, rsp                    ; save rsp
+    and     rsp, -16                    ; 16 bytes alignment
+
     lea     r9, [rsp - 8]               ; 4th argument: PDWORD lpflOldProtect
     mov     r8, PAGE_READWRITE          ; 3rd argument: DWORD  flNewProtect
     mov     rdx, 0x1000                 ; 2nd argument: SIZE_T dwSize
     mov     rcx, qword [rbp + 0x28]     ; 1st argument: LPVOID lpAddress
-    sub     rsp, 0x28                   ; 32 bytes of shadow space and 8 bytes argument space (lpflOldProtect)
+    sub     rsp, 0x30                   ; 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alignment
     call    qword [rbp - 0x18]          ; VirtualProtect
-    add     rsp, 0x28                   ; remove 32 bytes of shadow space and 8 bytes argument space (lpflOldProtect)
+    add     rsp, 0x30                   ; remove 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
+
+    mov     rsp, r15                    ; load rsp
 
     popaq
     ret
@@ -157,6 +164,10 @@ parse_exports_crc_done:
 decompress_image:
     pushaq
     
+    push    r15
+    mov     r15, rsp                        ; save rsp
+    and     rsp, -16                        ; 16 bytes alignment
+
     lea     rdx, [rsp - 8]
     push    rdx                             ; 6th argument: PULONG FinalUncompressedSize    
     mov     rdx, 0x32303061746164           ; data002 (compressed data section)
@@ -180,6 +191,9 @@ decompress_image:
     sub     rsp, 0x20                       ; 32 bytes of shadow space
     call    qword [rbp]                     ; RtlDecompressBuffer
     add     rsp, 0x30                       ; remove 32 bytes of shadow space and 16 bytes argument space
+
+    mov     rsp, r15                        ; load rsp
+    pop     r15
     
     call    fetch_nt_header
     mov     rbx, rax
@@ -246,12 +260,19 @@ check_import_dll_crc_apphelp:
     jmp     imported_dll
 
 call_loadlibrary_1:
+    push    r15
+    mov     r15, rsp                ; save rsp
+    and     rsp, -16                ; 16 bytes alignment
+
     push    rcx
     sub     rsp, 0x20               ; 32 bytes of shadow space
     mov     rcx, r14
     call    qword [rbp - 0x10]      ; LoadLibraryA
     add     rsp, 0x20               ; remove 32 bytes of shadow space
     pop     rcx
+
+    mov     rsp, r15                ; load rsp
+    pop     r15
 
 imported_dll:
     mov     rbx, rax    
@@ -510,10 +531,17 @@ check_forwarder_dll_name_crc_apphelp:
     jmp     imported_forwarder_dll
 
 call_loadlibrary_2:
+    push    r15
+    mov     r15, rsp                ; save rsp
+    and     rsp, -16                ; 16 bytes alignment
+
     sub     rsp, 0x20               ; 32 bytes of shadow space
     mov     rcx, r10                ; forwarder dll name address
     call    qword [rbp - 0x10]      ; LoadLibraryA
     add     rsp, 0x20               ; remove 32 bytes of shadow space
+
+    mov     rsp, r15                ; load rsp
+    pop     r15
 
 imported_forwarder_dll:
     mov     rcx, rax                ; forwarder dll base address
@@ -543,13 +571,20 @@ recover_nt_header_2:
     add     rdi, rdx                    ; nt header address
     rep     movsb    
 
+    push    r15
+    mov     r15, rsp                    ; save rsp
+    and     rsp, -16                    ; 16 bytes alignment
+
     lea     r9, [rsp - 8]               ; 4th argument: PDWORD lpflOldProtect
     mov     r8, PAGE_READONLY           ; 3rd argument: DWORD  flNewProtect
     mov     rdx, 0x1000                 ; 2nd argument: SIZE_T dwSize
     mov     rcx, qword [rbp + 0x28]     ; 1st argument: LPVOID lpAddress
-    sub     rsp, 0x28                   ; 32 bytes of shadow space and 8 bytes argument space (lpflOldProtect)
+    sub     rsp, 0x30                   ; 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
     call    qword [rbp - 0x18]          ; VirtualProtect
-    add     rsp, 0x28                   ; remove 32 bytes of shadow space and 8 bytes argument space (lpflOldProtect)
+    add     rsp, 0x30                   ; remove 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
+
+    mov     rsp, r15
+    pop     r15
 
     popaq
     ret
