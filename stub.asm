@@ -280,18 +280,42 @@ imported_dll:
     mov     rbx, rax    
     mov     edi, dword [rcx + _IMAGE_IMPORT_DESCRIPTOR.FirstThunk]
     add     rdi, qword [rbp + 0x28] ; add pe image base address
-    
+
 import_thunks:
     mov     rsi, rdi
     lodsq
     test    rax, rax
     jz      import_next
+
+    push    rax
+    push    rdx
+    mov     rdx, IMAGE_ORDINAL_FLAG64
+    and     rax, rdx
+    jnz     import_ordinal
+    pop     rdx
+    pop     rax
+
     add     rax, qword [rbp + 0x28] ; add pe image base address
     lea     rax, [rax + 2]          ; PIMAGE_IMPORT_BY_NAME->Name
     push    rcx
-    mov     rcx, rbx
-    mov     rdx, rax
+    mov     rcx, rbx                ; dll base address
+    mov     rdx, rax                ; function name pointer address
     call    parse_exports
+    pop     rcx
+    stosq
+    jmp     import_thunks
+
+import_ordinal:
+    pop     rdx
+    pop     rax
+    push    rdx
+    mov     rdx, IMAGE_ORDINAL_FLAG64
+    xor     rax, rdx
+    pop     rdx
+    push    rcx
+    mov     rcx, rbx                ; dll base address
+    mov     rdx, rax                ; ordinal
+    call    parse_exports_ordinal
     pop     rcx
     stosq
     jmp     import_thunks
@@ -558,11 +582,30 @@ check_forwarder_done:
     mov     rax, r8
 
 parse_exports_done:
+parse_exports_ordinal_done:
     pop     r8
     pop     rdi
     pop     rbx
     pop     rbp
     ret
+
+parse_exports_ordinal:
+    push    rbp
+    push    rbx
+    push    rdi
+    push    r8
+
+    mov     r15, rcx    ; dll base address
+    mov     eax, dword [r15 + _IMAGE_DOS_HEADER.e_lfanew]
+    mov     ebx, dword [r15 + rax + IMAGE_DIRECTORY_ENTRY_EXPORT]
+    add     rbx, r15    ; add dll base address
+    mov     ecx, dword [rbx + _IMAGE_EXPORT_DIRECTORY.Base]
+    sub     rdx, rcx
+    mov     eax, dword [rbx + _IMAGE_EXPORT_DIRECTORY.AddressOfFunctions]
+    add     rax, r15                    ; add dll base address
+    mov     eax, dword [rax + rdx * 4]
+    add     rax, r15                    ; add dll base address
+    jmp     check_forwarder
 
 recover_nt_header_2:
     pushaq
