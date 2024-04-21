@@ -174,7 +174,7 @@ decompress_image:
     mov     rcx, qword [rbp + 0x28]         ; pe image base address
     call    lookup_section_info
     add     rax, qword [rbp + 0x28]         ; vircual address + pe image base address
-    push    rbx                             ; 5th argument: ULONG  CompressedBufferSize
+    push    rdx                             ; 5th argument: ULONG  CompressedBufferSize
     push    rax                             ; PUCHAR CompressedBuffer
     
     mov     rdx, 0x30303061746164           ; data000 (decompressed data section)
