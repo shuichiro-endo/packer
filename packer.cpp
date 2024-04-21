@@ -64,8 +64,10 @@ static PIMAGE_SECTION_HEADER get_section_header(char *buffer)
 static bool check_pe_file(char *buffer)
 {
     PIMAGE_DOS_HEADER dos_header_pointer = NULL;
-    PIMAGE_NT_HEADERS64 nt_header_pointer = NULL;
+    PIMAGE_NT_HEADERS32 nt_header_32_pointer = NULL;
+    PIMAGE_NT_HEADERS64 nt_header_64_pointer = NULL;
     PIMAGE_FILE_HEADER file_header_pointer = NULL;
+    PIMAGE_OPTIONAL_HEADER32 optional_header_32_pointer = NULL;
     PIMAGE_OPTIONAL_HEADER64 optional_header_64_pointer = NULL;
 
 
@@ -75,21 +77,23 @@ static bool check_pe_file(char *buffer)
         return false;
     }
 
-    nt_header_pointer = (PIMAGE_NT_HEADERS64)((LPBYTE)buffer + dos_header_pointer->e_lfanew);
-    if(nt_header_pointer->Signature != IMAGE_NT_SIGNATURE){
+    nt_header_64_pointer = (PIMAGE_NT_HEADERS64)((LPBYTE)buffer + dos_header_pointer->e_lfanew);
+    if(nt_header_64_pointer->Signature != IMAGE_NT_SIGNATURE){
         printf("[E] invalid pe format\n");
         return false;
     }
 
-    file_header_pointer = (PIMAGE_FILE_HEADER)&nt_header_pointer->FileHeader;
+    file_header_pointer = (PIMAGE_FILE_HEADER)&nt_header_64_pointer->FileHeader;
     if(!(file_header_pointer->Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE) || (file_header_pointer->Characteristics & IMAGE_FILE_DLL)){
         printf("[E] invalid executable image\n");
         return false;
     }
 
-    optional_header_64_pointer = (PIMAGE_OPTIONAL_HEADER64)&nt_header_pointer->OptionalHeader;
-    if(optional_header_64_pointer->Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC){
-        printf("[E] invalid architecture\n");
+    nt_header_32_pointer = (PIMAGE_NT_HEADERS32)((LPBYTE)buffer + dos_header_pointer->e_lfanew);
+    optional_header_32_pointer = (PIMAGE_OPTIONAL_HEADER32)&nt_header_32_pointer->OptionalHeader;
+    optional_header_64_pointer = (PIMAGE_OPTIONAL_HEADER64)&nt_header_64_pointer->OptionalHeader;
+    if(optional_header_32_pointer->Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC || optional_header_64_pointer->Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC){
+        printf("[E] invalid architecture: this file is not a 64bit executable image\n");
         return false;
     }
 
