@@ -29,6 +29,13 @@ PAGE_WRITECOPY                equ       08h
 PAGE_TARGETS_INVALID          equ       40000000h
 PAGE_TARGETS_NO_UPDATE        equ       40000000h
 
+SCN_MEM_EXECUTE_READ_WRITE    equ       0e0000000h
+SCN_MEM_EXECUTE_READ          equ       60000000h
+SCN_MEM_READ_WRITE            equ       0c0000000h
+SCN_MEM_EXECUTE               equ       20000000h
+SCN_MEM_READ                  equ       40000000h
+SCN_MEM_WRITE                 equ       80000000h
+
 
 struc _IMAGE_DOS_HEADER
 .e_magic:       resw 1

@@ -61,6 +61,14 @@ static PIMAGE_SECTION_HEADER get_section_header(char *buffer)
 }
 
 
+static DWORD get_section_count(char *buffer)
+{
+    PIMAGE_FILE_HEADER file_header_pointer = get_file_header(buffer);
+
+    return (DWORD)file_header_pointer->NumberOfSections;
+}
+
+
 static bool check_pe_file(char *buffer)
 {
     PIMAGE_DOS_HEADER dos_header_pointer = NULL;
@@ -155,6 +163,8 @@ static bool link_data(char *input_pe_buffer, char *output_pe_buffer, DWORD *outp
     DWORD file_alignment = get_optional_header_64(input_pe_buffer)->FileAlignment;
     DWORD nt_header_64_size = sizeof(IMAGE_NT_HEADERS64);
     DWORD data_directory_size = sizeof(IMAGE_DATA_DIRECTORY);
+    DWORD input_pe_section_count = get_section_count(input_pe_buffer) + 1;
+    DWORD section_size = sizeof(IMAGE_SECTION_HEADER) * input_pe_section_count;
 
 
     // copy headers
@@ -189,14 +199,14 @@ static bool link_data(char *input_pe_buffer, char *output_pe_buffer, DWORD *outp
     output_pe_section_header[2].Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA;
     memcpy(((PBYTE)output_pe_buffer + output_pe_section_header[2].PointerToRawData), compressed_image_buffer, compressed_image_size);
 
-    // saved input pe nt header section
+    // saved input pe nt and section header section
     memcpy(&(output_pe_section_header[3].Name), "data003", 8);
-    output_pe_section_header[3].Misc.VirtualSize = align_memory_address(nt_header_64_size, section_alignment);
+    output_pe_section_header[3].Misc.VirtualSize = align_memory_address(nt_header_64_size + section_size , section_alignment);
     output_pe_section_header[3].VirtualAddress = output_pe_section_header[2].VirtualAddress + output_pe_section_header[2].Misc.VirtualSize;
-    output_pe_section_header[3].SizeOfRawData = align_memory_address(nt_header_64_size, file_alignment);
+    output_pe_section_header[3].SizeOfRawData = align_memory_address(nt_header_64_size + section_size, file_alignment);
     output_pe_section_header[3].PointerToRawData = output_pe_section_header[2].PointerToRawData +  output_pe_section_header[2].SizeOfRawData;
     output_pe_section_header[3].Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA;
-    memcpy(((PBYTE)output_pe_buffer + output_pe_section_header[3].PointerToRawData), get_nt_header(output_pe_buffer), nt_header_64_size);
+    memcpy(((PBYTE)output_pe_buffer + output_pe_section_header[3].PointerToRawData), get_nt_header(input_pe_buffer), nt_header_64_size + section_size);
     memset(get_optional_header_64(output_pe_buffer)->DataDirectory, 0, data_directory_size * 15);
 
     // write entry point

@@ -28,11 +28,11 @@ _main:
     
     call    get_address
     
-    call    recover_nt_header_1
+    call    recover_nt_section_header_1
     
     call    decompress_image
     
-    call    recover_nt_header_2
+    call    recover_nt_section_header_2
     
     call    lookup_oep
     
@@ -104,7 +104,7 @@ get_address:
     popaq
     ret
 
-recover_nt_header_1:
+recover_nt_section_header_1:
     pushaq
 
     mov     r15, rsp                    ; save rsp
@@ -173,14 +173,14 @@ decompress_image:
     mov     rdx, 0x32303061746164           ; data002 (compressed data section)
     mov     rcx, qword [rbp + 0x28]         ; pe image base address
     call    lookup_section_info
-    add     rax, qword [rbp + 0x28]         ; vircual address + pe image base address
+    add     rax, qword [rbp + 0x28]         ; virtual address + pe image base address
     push    rdx                             ; 5th argument: ULONG  CompressedBufferSize
     push    rax                             ; PUCHAR CompressedBuffer
     
     mov     rdx, 0x30303061746164           ; data000 (decompressed data section)
     mov     rcx, qword [rbp + 0x28]         ; pe image base address
     call    lookup_section_info
-    add     rax, qword [rbp + 0x28]         ; vircual address + pe image base address
+    add     rax, qword [rbp + 0x28]         ; virtual address + pe image base address
     push    rbx                             ; ULONG  UncompressedBufferSize
     push    rax                             ; PUCHAR UncompressedBuffer
 
@@ -406,7 +406,7 @@ fetch_nt_header:
     mov     rdx, 0x33303061746164       ; data003 (input pe nt header section)
     mov     rcx, qword [rbp + 0x28]     ; pe image base address
     call    lookup_section_info
-    add     rax, qword [rbp + 0x28]     ; vircual address + pe image base address
+    add     rax, qword [rbp + 0x28]     ; virtual address + pe image base address
 
     pop     rbp
     ret
@@ -473,11 +473,11 @@ check_forwarder:
     mov     rdx, 0x61746164722E         ; .rdata section
     mov     rcx, r15                    ; dll image base address
     call    lookup_section_info
-    add     rax, r15                    ; vircual address + dll image base address
+    add     rax, r15                    ; virtual address + dll image base address
 
     cmp     rax, r8
     jg      check_forwarder_done
-    add     rax, rbx                    ; vircual address + virtual size + dll image base address
+    add     rax, rbx                    ; virtual address + virtual size + dll image base address
     cmp     rax, r8
     jl      check_forwarder_done
 
@@ -607,16 +607,41 @@ parse_exports_ordinal:
     add     rax, r15                    ; add dll base address
     jmp     check_forwarder
 
-recover_nt_header_2:
+recover_nt_section_header_2:
     pushaq
 
+    mov     rdx, 0x30303061746164       ; data000 (decompressed data section)
+    mov     rcx, qword [rbp + 0x28]     ; pe image base address
+    call    lookup_section_info
+    add     rax, qword [rbp + 0x28]     ; virtual address + pe image base address
+
+    push    r15
+    mov     r15, rsp                    ; save rsp
+    and     rsp, -16                    ; 16 bytes alignment
+
+    lea     r9, [rsp - 8]               ; 4th argument: PDWORD lpflOldProtect
+    mov     r8, PAGE_NOACCESS           ; 3rd argument: DWORD  flNewProtect
+    mov     rdx, rbx                    ; 2nd argument: SIZE_T dwSize
+    mov     rcx, rax                    ; 1st argument: LPVOID lpAddress
+    sub     rsp, 0x30                   ; 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
+    call    qword [rbp - 0x18]          ; VirtualProtect
+    add     rsp, 0x30                   ; remove 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
+
+    mov     rsp, r15
+    pop     r15
+
     call    fetch_nt_header
-    mov     rcx, rdx                    ; data003 (input pe nt header section) SizeOfRawData
-    mov     rsi, rax                    ; data003 (input pe nt header section) VirtualAddress + pe image base address
+    mov     rcx, rdx                    ; data003 (input pe nt and section header section) SizeOfRawData
+    mov     rsi, rax                    ; data003 (input pe nt and section header section) VirtualAddress + pe image base address
     mov     rdx, qword [rbp + 0x28]     ; pe image base address
     mov     edi, dword [rdx + _IMAGE_DOS_HEADER.e_lfanew]
     add     rdi, rdx                    ; nt header address
     rep     movsb    
+
+    mov     rbx, qword [rbp + 0x28]
+    mov     ebx, dword [rbx + _IMAGE_DOS_HEADER.e_lfanew]
+    add     rbx, qword [rbp + 0x28]
+    mov     ebx, dword [rbx + _IMAGE_NT_HEADERS64.OptionalHeader + _IMAGE_OPTIONAL_HEADER64.SectionAlignment]   ; SectionAlignment
 
     push    r15
     mov     r15, rsp                    ; save rsp
@@ -624,7 +649,7 @@ recover_nt_header_2:
 
     lea     r9, [rsp - 8]               ; 4th argument: PDWORD lpflOldProtect
     mov     r8, PAGE_READONLY           ; 3rd argument: DWORD  flNewProtect
-    mov     rdx, 0x1000                 ; 2nd argument: SIZE_T dwSize
+    mov     rdx, rbx                    ; 2nd argument: SIZE_T dwSize
     mov     rcx, qword [rbp + 0x28]     ; 1st argument: LPVOID lpAddress
     sub     rsp, 0x30                   ; 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
     call    qword [rbp - 0x18]          ; VirtualProtect
@@ -633,6 +658,84 @@ recover_nt_header_2:
     mov     rsp, r15
     pop     r15
 
+    mov     rbx, qword [rbp + 0x28]
+    mov     ebx, dword [rbx + _IMAGE_DOS_HEADER.e_lfanew]
+    add     rbx, qword [rbp + 0x28]
+    movzx   ecx, word [rbx + _IMAGE_NT_HEADERS64.FileHeader + _IMAGE_FILE_HEADER.NumberOfSections]
+    movzx   edx, word [rbx + _IMAGE_NT_HEADERS64.FileHeader + _IMAGE_FILE_HEADER.SizeOfOptionalHeader]
+    add     rbx, _IMAGE_NT_HEADERS64.OptionalHeader
+    add     rbx, rdx                    ; section header
+
+check_section_characteristics:
+    mov     eax, dword [rbx + _IMAGE_SECTION_HEADER.Characteristics]
+
+check_section_characteristics_execute_read_write:
+    mov     r8d, eax
+    and     r8d, SCN_MEM_EXECUTE_READ_WRITE
+    cmp     r8d, SCN_MEM_EXECUTE_READ_WRITE
+    jne     check_section_characteristics_execute_read
+    mov     r8, PAGE_EXECUTE_READWRITE  ; 3rd argument: DWORD  flNewProtect
+    jmp     call_virtualprotect
+
+check_section_characteristics_execute_read:
+    mov     r8d, eax
+    and     r8d, SCN_MEM_EXECUTE_READ
+    cmp     r8d, SCN_MEM_EXECUTE_READ
+    jne     check_section_characteristics_read_write
+    mov     r8, PAGE_EXECUTE_READ       ; 3rd argument: DWORD  flNewProtect
+    jmp     call_virtualprotect
+
+check_section_characteristics_read_write:
+    mov     r8d, eax
+    and     r8d, SCN_MEM_READ_WRITE
+    cmp     r8d, SCN_MEM_READ_WRITE
+    jne     check_section_characteristics_execute
+    mov     r8, PAGE_READWRITE          ; 3rd argument: DWORD  flNewProtect
+    jmp     call_virtualprotect
+
+check_section_characteristics_execute:
+    mov     r8d, eax
+    and     r8d, SCN_MEM_EXECUTE
+    cmp     r8d, SCN_MEM_EXECUTE
+    jne     check_section_characteristics_read
+    mov     r8, PAGE_EXECUTE            ; 3rd argument: DWORD  flNewProtect
+    jmp     call_virtualprotect
+
+check_section_characteristics_read:
+    mov     r8d, eax
+    and     r8d, SCN_MEM_READ
+    cmp     r8d, SCN_MEM_READ
+    jne     check_section_characteristics_done
+    mov     r8, PAGE_READONLY           ; 3rd argument: DWORD  flNewProtect
+
+call_virtualprotect:
+    push    rbx
+    push    rcx
+
+    push    r15
+    mov     r15, rsp                    ; save rsp
+    and     rsp, -16                    ; 16 bytes alignment
+
+    lea     r9, [rsp - 8]                                               ; 4th argument: PDWORD lpflOldProtect
+    mov     edx, dword [rbx + _IMAGE_SECTION_HEADER.VirtualSize]        ; 2nd argument: SIZE_T dwSize
+    mov     ecx, dword [rbx + _IMAGE_SECTION_HEADER.VirtualAddress]
+    add     rcx, qword [rbp + 0x28]                                     ; 1st argument: LPVOID lpAddress
+    sub     rsp, 0x30                   ; 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
+    call    qword [rbp - 0x18]          ; VirtualProtect
+    add     rsp, 0x30                   ; remove 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
+
+    mov     rsp, r15
+    pop     r15
+
+    pop     rcx
+    pop     rbx
+
+check_section_characteristics_done:
+    add     rbx, _IMAGE_SECTION_HEADER_size
+    dec     ecx
+    jnz     check_section_characteristics
+
+recover_nt_section_header_2_done:
     popaq
     ret
 
