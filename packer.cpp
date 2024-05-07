@@ -155,7 +155,22 @@ error:
 }
 
 
-static bool link_data(char *input_pe_buffer, char *output_pe_buffer, DWORD *output_pe_size, char *stub_buffer, DWORD stub_size, char *compressed_image_buffer, DWORD compressed_image_size)
+static bool encrypt_headers(char *headers_buffer, DWORD headers_size, char *encrypted_headers_buffer, DWORD *encrypted_headers_size)
+{
+    char key[] = {0xef, 0xbe, 0xad, 0xde, 0x0};
+    DWORD key_length = 4;
+
+    for(DWORD i=0; i<headers_size; i++){
+        (char)encrypted_headers_buffer[i] = (char)headers_buffer[i] ^ (char)key[i % key_length];
+    }
+
+    *encrypted_headers_size = headers_size;
+
+    return true;
+}
+
+
+static bool link_data(char *input_pe_buffer, char *output_pe_buffer, DWORD *output_pe_size, char *stub_buffer, DWORD stub_size, char *compressed_image_buffer, DWORD compressed_image_size, char *encrypted_headers_buffer, DWORD encrypted_headers_size)
 {
     PIMAGE_SECTION_HEADER output_pe_section_header = NULL;
     WORD size_of_optional_header = get_file_header(input_pe_buffer)->SizeOfOptionalHeader;
@@ -203,10 +218,12 @@ static bool link_data(char *input_pe_buffer, char *output_pe_buffer, DWORD *outp
     memcpy(&(output_pe_section_header[3].Name), "data003", 8);
     output_pe_section_header[3].Misc.VirtualSize = align_memory_address(nt_header_64_size + section_size , section_alignment);
     output_pe_section_header[3].VirtualAddress = output_pe_section_header[2].VirtualAddress + output_pe_section_header[2].Misc.VirtualSize;
-    output_pe_section_header[3].SizeOfRawData = align_memory_address(nt_header_64_size + section_size, file_alignment);
+    output_pe_section_header[3].SizeOfRawData = align_memory_address(encrypted_headers_size, file_alignment);
     output_pe_section_header[3].PointerToRawData = output_pe_section_header[2].PointerToRawData +  output_pe_section_header[2].SizeOfRawData;
-    output_pe_section_header[3].Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_CNT_INITIALIZED_DATA;
-    memcpy(((PBYTE)output_pe_buffer + output_pe_section_header[3].PointerToRawData), get_nt_header(input_pe_buffer), nt_header_64_size + section_size);
+    output_pe_section_header[3].Characteristics = IMAGE_SCN_MEM_READ | IMAGE_SCN_MEM_WRITE | IMAGE_SCN_CNT_INITIALIZED_DATA;
+    memcpy(((PBYTE)output_pe_buffer + output_pe_section_header[3].PointerToRawData), encrypted_headers_buffer, encrypted_headers_size);
+
+    // clear DataDirectory
     memset(get_optional_header_64(output_pe_buffer)->DataDirectory, 0, data_directory_size * 15);
 
     // write entry point
@@ -262,6 +279,12 @@ int main(int argc, char **argv)
 
     char *stub_buffer = NULL;
     DWORD stub_size = 0;
+
+    char *headers_buffer = NULL;
+    DWORD headers_size = 0;
+
+    char *encrypted_headers_buffer = NULL;
+    DWORD encrypted_headers_size = 0;
 
     char *output_pe_buffer = NULL;
     DWORD output_pe_size = 0;
@@ -332,6 +355,16 @@ int main(int argc, char **argv)
     }
 
 
+    printf("[I] encrypt headers\n");
+    headers_buffer = (char *)((LPBYTE)input_pe_buffer + ((PIMAGE_DOS_HEADER)input_pe_buffer)->e_lfanew);
+    headers_size = sizeof(IMAGE_NT_HEADERS64) + (get_file_header(input_pe_buffer)->NumberOfSections + 1) * sizeof(IMAGE_SECTION_HEADER);
+    encrypted_headers_buffer = (char *)calloc(headers_size, sizeof(char));
+    if(!encrypt_headers(headers_buffer, headers_size, encrypted_headers_buffer, &encrypted_headers_size)){
+        printf("[E] encrypt_headers error\n");
+        goto error;
+    }
+
+
     printf("[I] read stub.bin file\n");
     file_pointer = fopen("stub.bin", "rb");
     if(file_pointer != NULL){
@@ -349,7 +382,7 @@ int main(int argc, char **argv)
 
     printf("[I] link data\n");
     output_pe_buffer = (char *)calloc(MAX_FILE_SIZE+5000000, sizeof(char));
-    if(!link_data(input_pe_buffer, output_pe_buffer, &output_pe_size, stub_buffer, stub_size, compressed_image_buffer, compressed_image_size)){
+    if(!link_data(input_pe_buffer, output_pe_buffer, &output_pe_size, stub_buffer, stub_size, compressed_image_buffer, compressed_image_size, encrypted_headers_buffer, encrypted_headers_size)){
         printf("[E] link_data error\n");
         goto error;
     }
@@ -371,6 +404,7 @@ int main(int argc, char **argv)
     free(input_pe_buffer);
     free(image_buffer);
     free(compressed_image_buffer);
+    free(encrypted_headers_buffer);
     free(stub_buffer);
     free(output_pe_buffer);
     return 0;
@@ -380,6 +414,7 @@ error:
     free(input_pe_buffer);
     free(image_buffer);
     free(compressed_image_buffer);
+    free(encrypted_headers_buffer);
     free(stub_buffer);
     free(output_pe_buffer);
     return -1;

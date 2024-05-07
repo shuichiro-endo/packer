@@ -30,6 +30,8 @@ _main:
     
     call    recover_nt_section_header_1
     
+    call    decrypt_headers
+    
     call    decompress_image
     
     call    recover_nt_section_header_2
@@ -104,25 +106,6 @@ get_address:
     popaq
     ret
 
-recover_nt_section_header_1:
-    pushaq
-
-    mov     r15, rsp                    ; save rsp
-    and     rsp, -16                    ; 16 bytes alignment
-
-    lea     r9, [rsp - 8]               ; 4th argument: PDWORD lpflOldProtect
-    mov     r8, PAGE_READWRITE          ; 3rd argument: DWORD  flNewProtect
-    mov     rdx, 0x1000                 ; 2nd argument: SIZE_T dwSize
-    mov     rcx, qword [rbp + 0x28]     ; 1st argument: LPVOID lpAddress
-    sub     rsp, 0x30                   ; 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alignment
-    call    qword [rbp - 0x18]          ; VirtualProtect
-    add     rsp, 0x30                   ; remove 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
-
-    mov     rsp, r15                    ; load rsp
-
-    popaq
-    ret
-
 parse_exports_crc:
     push    rbp
 
@@ -159,6 +142,49 @@ walk_names_crc:
 
 parse_exports_crc_done:
     pop     rbp
+    ret
+
+recover_nt_section_header_1:
+    pushaq
+
+    mov     r15, rsp                    ; save rsp
+    and     rsp, -16                    ; 16 bytes alignment
+
+    lea     r9, [rsp - 8]               ; 4th argument: PDWORD lpflOldProtect
+    mov     r8, PAGE_READWRITE          ; 3rd argument: DWORD  flNewProtect
+    mov     rdx, 0x1000                 ; 2nd argument: SIZE_T dwSize
+    mov     rcx, qword [rbp + 0x28]     ; 1st argument: LPVOID lpAddress
+    sub     rsp, 0x30                   ; 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alignment
+    call    qword [rbp - 0x18]          ; VirtualProtect
+    add     rsp, 0x30                   ; remove 32 bytes of shadow space, 8 bytes argument space (lpflOldProtect) and 16 bytes alighment
+
+    mov     rsp, r15                    ; load rsp
+
+    popaq
+    ret
+
+decrypt_headers:
+    pushaq
+
+    mov     rdx, 0x33303061746164           ; data003 (input pe nt header section)
+    mov     rcx, qword [rbp + 0x28]         ; pe image base address
+    call    lookup_section_info
+    add     rax, qword [rbp + 0x28]         ; virtual address + pe image base address
+    mov     rsi, rax
+    mov     rcx, rdx                        ; SizeOfRawData
+    mov     ebx, 0xdeadbeef                 ; key
+
+decrypt_headers_loop:
+    mov     al, byte [rsi]
+    xor     al, bl
+    mov     byte [rsi], al
+    add     rsi, 1
+    ror     ebx, 8
+    dec     rcx
+    jnz     decrypt_headers_loop
+
+decrypt_header_done:
+    popaq
     ret
 
 decompress_image:
