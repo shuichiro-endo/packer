@@ -122,7 +122,7 @@ _main:
     lea     rsi, qword [r15 - 0x138]                ; ld.so filepath
     call    get_ld_filepath
 
-    mov     rdi, [r15 + 0x8]                        ; ld.so base address
+    mov     rdi, qword [r15 + 0x8]                  ; ld.so base address
     lea     rsi, qword [r15 - 0x138]                ; ld.so filepath
     call    fix_ld
 
@@ -940,7 +940,7 @@ fix_load_segment:
 check_pf_r:
     mov     ecx, eax
     and     ecx, PF_R
-    jz      check_pf_w
+    jz      check_pf_x
     or      edx, PROT_READ
 
 check_pf_x:
@@ -983,7 +983,7 @@ check_pf_done_1:
     mov     rdx, SEEK_SET               ; 3rd argument: unsigned int origin
     mov     rsi, r8                     ; 2nd argument: off_t offset
     mov     rdi, r12                    ; 1st argument: unsigned int fd
-    mov     rax, 0x8                    ; sys_read
+    mov     rax, 0x8                    ; sys_lseek
     syscall
 
     mov     rdx, r10                    ; 3rd argument: size_t count
