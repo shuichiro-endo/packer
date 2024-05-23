@@ -273,6 +273,10 @@ get_libc_base_address:
     syscall
     mov     rcx, rax
 
+    mov     rdi, rdi                    ; 1st argument: unsigned int fd
+    mov     rax, 0x3                    ; sys_close
+    syscall
+
     xor     rax, rax
     mov     eax, 0xdec2cdc1
     xor     eax, 0xdeadbeef
@@ -986,6 +990,10 @@ check_pf_done_1:
     mov     rsi, r9                     ; 2nd argument: char *buf
     mov     rdi, r12                    ; 1st argument: unsigned int fd
     mov     rax, 0x0                    ; sys_read
+    syscall
+
+    mov     rdi, r12                    ; 1st argument: unsigned int fd
+    mov     rax, 0x3                    ; sys_close
     syscall
 
     jmp     search_pt_load_next_1
