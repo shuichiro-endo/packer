@@ -15,6 +15,7 @@
 
 #define MAX_FILE_SIZE 10240000  // 10 MB
 #define CHUNK_SIZE 16384    // 0x4000
+#define LIBC_SO "libc.so.6"
 
 
 static void print_bytes(unsigned char *input, int input_length)
@@ -332,13 +333,13 @@ static bool link_data(char *input_elf_buffer, char *output_elf_buffer, Elf64_Xwo
     output_dt_strtab_string_offset = output_offset;
     output_dt_strsz_string_size = 0;    // update after
 
-    // dynamic[]: DT_NEEDED libc.so.6
+    // dynamic[]: DT_NEEDED libc.so
     output_offset++;                // write \0
     output_dt_strsz_string_size++;  // write \0
     output_dt_needed_libc_string_offset = 0x1;  // string table offset
     output_dt_needed_libc_string_pointer = output_elf_buffer + output_offset;
-    output_dt_needed_libc_string_length = strlen("libc.so.6");
-    memcpy(output_dt_needed_libc_string_pointer, "libc.so.6", output_dt_needed_libc_string_length);
+    output_dt_needed_libc_string_length = strlen(LIBC_SO);
+    memcpy(output_dt_needed_libc_string_pointer, LIBC_SO, output_dt_needed_libc_string_length);
 
     output_offset += output_dt_needed_libc_string_length + 1;
     output_dt_strsz_string_size += output_dt_needed_libc_string_length + 1;
@@ -389,7 +390,7 @@ static bool link_data(char *input_elf_buffer, char *output_elf_buffer, Elf64_Xwo
     output_dynamic_pointer = (Elf64_Dyn *)(output_elf_buffer + align_memory_address(output_program_header_pointer[4].p_offset + output_program_header_pointer[4].p_filesz, output_program_header_pointer[4].p_align));
     dymamic_count = 0;
 
-    // dynamic[]: DT_NEEDED libc.so.6
+    // dynamic[]: DT_NEEDED libc.so
     output_dynamic_pointer[dymamic_count].d_tag = DT_NEEDED;
     output_dynamic_pointer[dymamic_count].d_un.d_val = output_dt_needed_libc_string_offset;
     dymamic_count++;
