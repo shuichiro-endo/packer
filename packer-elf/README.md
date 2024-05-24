@@ -5,7 +5,7 @@ packer elf
 ### Install dependencies
 - c++ compiler (g++)
 - nasm
-- libz.so (compress, decompress)
+- zlib libz.so (compress, decompress)
 
 ### Install
 1. download the latest [packer](https://github.com/shuichiro-endo/packer)
