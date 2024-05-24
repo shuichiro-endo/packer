@@ -20,8 +20,8 @@ _main:
     ; [ r15 + 0x38 ] save decompress data segment size
     ; [ r15 + 0x30 ] save compressed data segment address
     ; [ r15 + 0x28 ] save compressed data segment size
-    ; [ r15 + 0x20 ] save encrypted headers segment address
-    ; [ r15 + 0x18 ] save encrypted headers segment size
+    ; [ r15 + 0x20 ]
+    ; [ r15 + 0x18 ]
     ; [ r15 + 0x10 ] save libc.so base address
     ; [ r15 + 0x8  ] save ld.so base address
     sub     rsp, 0x50
@@ -72,16 +72,6 @@ _main:
     call    get_segment_address_size
     mov     qword [r15 + 0x30], rax                 ; compressed data segment address
     mov     qword [r15 + 0x28], rdx                 ; compressed data segment size
-
-    mov     rdi, qword [r15 + 0x48]                 ; elf image base address
-    mov     rsi, 0x5                                ; program header[5]: load (saved input elf and program header)
-    call    get_segment_address_size
-    mov     qword [r15 + 0x20], rax                 ; encrypted headers segment address
-    mov     qword [r15 + 0x18], rdx                 ; encrypted headers segment size
-
-    mov     rdi, rax                                ; encrypted headers segment address
-    mov     rsi, rcx                                ; encrypted headers segment file size
-    call    decrypt_headers
 
     mov     rdi, qword [r15 + 0x40]                 ; decompress data segment address
     mov     rsi, qword [r15 + 0x38]                 ; decompress data segment size
@@ -215,24 +205,6 @@ get_segment_address_size:
     add     rax, rdi                                    ; segment address
     mov     rdx, qword [rbx + _Elf64_Phdr.p_memsz]      ; segment memory size
     mov     rcx, qword [rbx + _Elf64_Phdr.p_filesz]     ; segment file size
-    ret
-
-
-decrypt_headers:
-    mov     rcx, rsi                        ; encrypted headers segment size
-    mov     rsi, rdi                        ; encrypted headers segment address
-    mov     ebx, 0xdeadbeef                 ; key
-
-decrypt_headers_loop:
-    mov     al, byte [rsi]
-    xor     al, bl
-    mov     byte [rsi], al
-    add     rsi, 1
-    ror     ebx, 8
-    dec     rcx
-    jnz     decrypt_headers_loop
-
-decrypt_header_done:
     ret
 
 

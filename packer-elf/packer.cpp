@@ -259,7 +259,7 @@ static bool encrypt_headers(char *headers_buffer, Elf64_Xword headers_size, char
 }
 
 
-static bool link_data(char *input_elf_buffer, char *output_elf_buffer, Elf64_Xword *output_elf_size, char *stub_buffer, Elf64_Xword stub_size, char *compressed_image_buffer, Elf64_Xword compressed_image_size, char *encrypted_headers_buffer, Elf64_Xword encrypted_headers_size)
+static bool link_data(char *input_elf_buffer, char *output_elf_buffer, Elf64_Xword *output_elf_size, char *stub_buffer, Elf64_Xword stub_size, char *compressed_image_buffer, Elf64_Xword compressed_image_size)
 {
     Elf64_Ehdr *input_elf_header_pointer = (Elf64_Ehdr *)input_elf_buffer;
     Elf64_Ehdr *output_elf_header_pointer = (Elf64_Ehdr *)output_elf_buffer;
@@ -294,7 +294,7 @@ static bool link_data(char *input_elf_buffer, char *output_elf_buffer, Elf64_Xwo
     memcpy(output_elf_buffer, input_elf_buffer, input_elf_header_pointer->e_ehsize);
 
     // fix elf header
-    output_elf_header_pointer->e_phnum = 0x8;   // PHDR + INTERP + LOAD * 5 + DYNAMIC
+    output_elf_header_pointer->e_phnum = 0x7;   // PHDR + INTERP + LOAD * 4 + DYNAMIC
     output_elf_header_pointer->e_shoff = 0x0;
     output_elf_header_pointer->e_shentsize = 0x0;
     output_elf_header_pointer->e_shnum = 0x0;
@@ -385,19 +385,8 @@ static bool link_data(char *input_elf_buffer, char *output_elf_buffer, Elf64_Xwo
     output_program_header_pointer[4].p_align = 0x1000;
     memcpy(output_elf_buffer + output_program_header_pointer[4].p_offset, compressed_image_buffer, compressed_image_size);
 
-    // program header[5]: load (saved input elf and program header)
-    output_program_header_pointer[5].p_type = PT_LOAD;
-    output_program_header_pointer[5].p_flags = PF_R | PF_W;
-    output_program_header_pointer[5].p_offset = align_memory_address(output_program_header_pointer[4].p_offset + output_program_header_pointer[4].p_filesz, output_program_header_pointer[4].p_align);
-    output_program_header_pointer[5].p_vaddr = align_memory_address(output_program_header_pointer[4].p_vaddr + output_program_header_pointer[4].p_memsz, output_program_header_pointer[4].p_align);
-    output_program_header_pointer[5].p_paddr = align_memory_address(output_program_header_pointer[4].p_paddr + output_program_header_pointer[4].p_memsz, output_program_header_pointer[4].p_align);
-    output_program_header_pointer[5].p_filesz = encrypted_headers_size;
-    output_program_header_pointer[5].p_memsz = encrypted_headers_size;
-    output_program_header_pointer[5].p_align = 0x1000;
-    memcpy(output_elf_buffer + output_program_header_pointer[5].p_offset, encrypted_headers_buffer, encrypted_headers_size);
-
-    // program header[6]: load dynamic
-    output_dynamic_pointer = (Elf64_Dyn *)(output_elf_buffer + align_memory_address(output_program_header_pointer[5].p_offset + output_program_header_pointer[5].p_filesz, output_program_header_pointer[5].p_align));
+    // program header[5]: load dynamic
+    output_dynamic_pointer = (Elf64_Dyn *)(output_elf_buffer + align_memory_address(output_program_header_pointer[4].p_offset + output_program_header_pointer[4].p_filesz, output_program_header_pointer[4].p_align));
     dymamic_count = 0;
 
     // dynamic[]: DT_NEEDED libc.so.6
@@ -525,30 +514,30 @@ static bool link_data(char *input_elf_buffer, char *output_elf_buffer, Elf64_Xwo
     output_dynamic_pointer[dymamic_count].d_un.d_val = 0x0;
     dymamic_count++;
 
-    output_program_header_pointer[6].p_type = PT_LOAD;
-    output_program_header_pointer[6].p_flags = PF_R | PF_W;
-    output_program_header_pointer[6].p_offset = align_memory_address(output_program_header_pointer[5].p_offset + output_program_header_pointer[5].p_filesz, output_program_header_pointer[5].p_align);
-    output_program_header_pointer[6].p_vaddr = align_memory_address(output_program_header_pointer[5].p_vaddr + output_program_header_pointer[5].p_memsz, output_program_header_pointer[5].p_align);
-    output_program_header_pointer[6].p_paddr = align_memory_address(output_program_header_pointer[5].p_paddr + output_program_header_pointer[5].p_memsz, output_program_header_pointer[5].p_align);
-    output_program_header_pointer[6].p_filesz = 0x10 * dymamic_count;
-    output_program_header_pointer[6].p_memsz = 0x10 * dymamic_count;
-    output_program_header_pointer[6].p_align = 0x1000;
+    output_program_header_pointer[5].p_type = PT_LOAD;
+    output_program_header_pointer[5].p_flags = PF_R | PF_W;
+    output_program_header_pointer[5].p_offset = align_memory_address(output_program_header_pointer[4].p_offset + output_program_header_pointer[4].p_filesz, output_program_header_pointer[4].p_align);
+    output_program_header_pointer[5].p_vaddr = align_memory_address(output_program_header_pointer[4].p_vaddr + output_program_header_pointer[4].p_memsz, output_program_header_pointer[4].p_align);
+    output_program_header_pointer[5].p_paddr = align_memory_address(output_program_header_pointer[4].p_paddr + output_program_header_pointer[4].p_memsz, output_program_header_pointer[4].p_align);
+    output_program_header_pointer[5].p_filesz = 0x10 * dymamic_count;
+    output_program_header_pointer[5].p_memsz = 0x10 * dymamic_count;
+    output_program_header_pointer[5].p_align = 0x1000;
 
-    // program header[7]: dynamic
-    output_program_header_pointer[7].p_type = PT_DYNAMIC;
-    output_program_header_pointer[7].p_flags = PF_W | PF_R;
-    output_program_header_pointer[7].p_offset = output_program_header_pointer[6].p_offset;
-    output_program_header_pointer[7].p_vaddr = output_program_header_pointer[6].p_vaddr;
-    output_program_header_pointer[7].p_paddr = output_program_header_pointer[6].p_paddr;
-    output_program_header_pointer[7].p_filesz = output_program_header_pointer[6].p_filesz;
-    output_program_header_pointer[7].p_memsz = output_program_header_pointer[6].p_memsz;
-    output_program_header_pointer[7].p_align = 0x8;
+    // program header[6]: dynamic
+    output_program_header_pointer[6].p_type = PT_DYNAMIC;
+    output_program_header_pointer[6].p_flags = PF_W | PF_R;
+    output_program_header_pointer[6].p_offset = output_program_header_pointer[5].p_offset;
+    output_program_header_pointer[6].p_vaddr = output_program_header_pointer[5].p_vaddr;
+    output_program_header_pointer[6].p_paddr = output_program_header_pointer[5].p_paddr;
+    output_program_header_pointer[6].p_filesz = output_program_header_pointer[5].p_filesz;
+    output_program_header_pointer[6].p_memsz = output_program_header_pointer[5].p_memsz;
+    output_program_header_pointer[6].p_align = 0x8;
 
     // write entry point
     output_elf_header_pointer->e_entry = output_program_header_pointer[3].p_vaddr;  // stub
 
     // output pe size
-    *output_elf_size = output_program_header_pointer[6].p_offset + output_program_header_pointer[6].p_filesz;
+    *output_elf_size = output_program_header_pointer[5].p_offset + output_program_header_pointer[5].p_filesz;
 
     return true;
 }
@@ -586,9 +575,6 @@ int main(int argc, char **argv)
 
     char *headers_buffer = NULL;
     Elf64_Xword headers_size = 0;
-
-    char *encrypted_headers_buffer = NULL;
-    Elf64_Xword encrypted_headers_size = 0;
 
     char *output_elf_buffer = NULL;
     Elf64_Xword output_elf_size = 0;
@@ -669,17 +655,6 @@ int main(int argc, char **argv)
 //    print_bytes((unsigned char *)compressed_image_buffer, compressed_image_size);
 
 
-    printf("[I] encrypt headers\n");
-    headers_buffer = input_elf_buffer;
-    headers_size = get_headers_size(input_elf_buffer);
-    encrypted_headers_buffer = (char *)calloc(headers_size, sizeof(char));
-    if(!encrypt_headers(headers_buffer, headers_size, encrypted_headers_buffer, &encrypted_headers_size)){
-        printf("[E] encrypt_headers error\n");
-        goto error;
-    }
-//    print_bytes((unsigned char *)encrypted_headers_buffer, encrypted_headers_size);
-
-
     printf("[I] read stub.bin file\n");
     file_pointer = fopen("stub.bin", "rb");
     if(file_pointer != NULL){
@@ -698,7 +673,7 @@ int main(int argc, char **argv)
 
     printf("[I] link data\n");
     output_elf_buffer = (char *)calloc(MAX_FILE_SIZE+5000000, sizeof(char));
-    if(!link_data(input_elf_buffer, output_elf_buffer, &output_elf_size, stub_buffer, stub_size, compressed_image_buffer, compressed_image_size, encrypted_headers_buffer, encrypted_headers_size)){
+    if(!link_data(input_elf_buffer, output_elf_buffer, &output_elf_size, stub_buffer, stub_size, compressed_image_buffer, compressed_image_size)){
         printf("[E] link_data error\n");
         goto error;
     }
@@ -720,7 +695,6 @@ int main(int argc, char **argv)
     free(input_elf_buffer);
     free(image_buffer);
     free(compressed_image_buffer);
-    free(encrypted_headers_buffer);
     free(stub_buffer);
     free(output_elf_buffer);
     return 0;
@@ -730,7 +704,6 @@ error:
     free(input_elf_buffer);
     free(image_buffer);
     free(compressed_image_buffer);
-    free(encrypted_headers_buffer);
     free(stub_buffer);
     free(output_elf_buffer);
     return -1;
