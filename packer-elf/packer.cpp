@@ -148,7 +148,7 @@ static bool dump_mapped_image(char *input_elf_buffer, char *image_buffer, Elf64_
     Elf64_Phdr *elf_program_header_pointer = (Elf64_Phdr *)(input_elf_buffer + e_phoff);
 
 
-    for(Elf64_Off i=0; i<e_phoff; i++){
+    for(Elf64_Off i=0; i<e_phnum; i++){
         if(elf_program_header_pointer[i].p_type == PT_LOAD){
             if(elf_program_header_pointer[i].p_vaddr + elf_program_header_pointer[i].p_filesz > image_size){
                 return false;
