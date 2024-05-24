@@ -5,6 +5,7 @@ packer elf
 ### Install dependencies
 - c++ compiler (g++)
 - nasm
+- libc libc.so.6
 - zlib 1.3.1 libz.so (compress, decompress)
 
 ### Install
