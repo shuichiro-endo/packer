@@ -119,6 +119,9 @@ _main:
     lea     rsi, qword [r15 - 0x138]                ; ld.so filepath
     call    fix_ld
 
+    mov     rdi, qword [r15 + 0x10]                 ; libc.so base address
+    call    unmap_libc
+
     mov     rdi, qword [r15 + 0x8]                  ; ld.so base address
     call    lookup_oep
 
@@ -1072,6 +1075,63 @@ fix_ld_search_pt_load_next_2:
     jne     fix_ld_search_pt_load
 
 fix_ld_done:
+    ret
+
+
+unmap_libc:
+    mov     rbx, qword [rdi + _Elf64_Ehdr.e_phoff]          ; libc image base address
+    add     rbx, rdi                                        ; program header (libc)
+
+    xor     rax, rax
+    mov     ax, word [rdi + _Elf64_Ehdr.e_phentsize]
+    xor     rcx, rcx
+    mov     cx, word [rdi + _Elf64_Ehdr.e_phnum]
+
+    push    rax
+    mul     ecx
+    add     rbx, rax
+    pop     rax
+    sub     rbx, rax                                        ; program header (libc) + e_phentsize * (e_phnum - 1)
+
+    mov     rcx, 0x4                                        ; libc PT_LOAD count: 4
+
+unmap_libc_search_pt_load:
+    mov     edx, dword [rbx]                                ; p_type
+    cmp     edx, PT_LOAD
+    jne     unmap_libc_search_pt_load_next
+
+    mov     r14, rdi
+    dec     rcx                                             ; dec libc PT_LOAD count
+
+    push    rdi
+    push    rcx
+    push    rax
+
+
+    mov     rdi, qword [rbx + _Elf64_Phdr.p_memsz]          ; size
+    mov     rsi, qword [rbx + _Elf64_Phdr.p_align]          ; align
+    call    align_address
+    mov     rsi, rax                                        ; 2nd argument: size_t len
+
+    mov     rdi, qword [rbx + _Elf64_Phdr.p_vaddr]
+    add     rdi, r14                                        ; 1st argument: unsigned long addr
+    mov     r12, qword [rbx + _Elf64_Phdr.p_align]          ; align
+    sub     r12, 1
+    not     r12
+    and     rdi, r12                                        ; align
+    mov     rax, 0xb                                        ; sys_munmap
+    syscall
+
+    pop     rax
+    pop     rcx
+    pop     rdi
+
+unmap_libc_search_pt_load_next:
+    sub     rbx, rax
+    cmp     rcx, 0x0
+    jne     unmap_libc_search_pt_load
+
+unmap_libc_done:
     ret
 
 
