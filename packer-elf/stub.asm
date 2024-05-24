@@ -109,7 +109,10 @@ _main:
     mov     rsi, qword [r15 + 0x28]                 ; compressed data segment size
     mov     rdx, qword [r15 + 0x40]                 ; decompress data segment address
     call    decompress_image
-    
+
+    mov     rdi, qword [r15 + 0x40]                 ; decompress data segment address
+    call    fix_memory_protect
+
     mov     rdi, qword [r15 - 0x10]                 ; dlclose function address (libc.so)
     mov     rsi, qword [r15 - 0x30]                 ; libz.so handle address
     call    dlclose_libz
@@ -805,6 +808,82 @@ inf_label_07:
     ret
 
 
+fix_memory_protect:
+    mov     rbx, qword [rdi + _Elf64_Ehdr.e_phoff]          ; decompress data segment address
+    add     rbx, rdi                                        ; program header (decompressed elf image)
+
+    xor     rax, rax
+    mov     ax, word [rdi + _Elf64_Ehdr.e_phentsize]
+    xor     rcx, rcx
+    mov     cx, word [rdi + _Elf64_Ehdr.e_phnum]
+
+fix_memory_protect_search_pt_load:
+    mov     edx, dword [rbx]                                ; p_type
+    cmp     edx, PT_LOAD
+    jne     fix_memory_protect_search_pt_load_next_2
+
+fix_memory_protect_fix_load_segment:
+    mov     r14, rdi
+    mov     r13, rsi
+
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    push    rax
+
+    mov     rdi, qword [rbx + _Elf64_Phdr.p_memsz]          ; size
+    mov     rsi, qword [rbx + _Elf64_Phdr.p_align]          ; align
+    call    align_address
+    mov     rsi, rax                                        ; 2nd argument: size_t len
+
+    mov     eax, dword [rbx + _Elf64_Phdr.p_flags]          ; flags
+    xor     rdx, rdx                                        ; 3rd argument: unsigned long prot
+
+fix_memory_protect_check_pf_r:
+    mov     ecx, eax
+    and     ecx, PF_R
+    jz      fix_memory_protect_check_pf_w
+    or      edx, PROT_READ
+
+fix_memory_protect_check_pf_w:
+    mov     ecx, eax
+    and     ecx, PF_W
+    jz      fix_memory_protect_check_pf_x
+    or      edx, PROT_WRITE
+
+fix_memory_protect_check_pf_x:
+    mov     ecx, eax
+    and     ecx, PF_X
+    jz      fix_memory_protect_check_pf_done_1
+    or      edx, PROT_EXEC
+
+fix_memory_protect_check_pf_done_1:
+    mov     rdi, qword [rbx + _Elf64_Phdr.p_vaddr]
+    add     rdi, r14                                        ; 1st argument: unsigned long start
+    mov     r13, qword [rbx + _Elf64_Phdr.p_align]          ; align
+    sub     r13, 1
+    not     r13
+    and     rdi, r13                                        ; align
+    mov     rax, 0xa                                        ; sys_mprotect
+    syscall
+
+    pop     rax
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
+
+fix_memory_protect_search_pt_load_next_2:
+    add     rbx, rax
+    dec     rcx
+    cmp     rcx, 0x0
+    jne     fix_memory_protect_search_pt_load
+
+fix_memory_protect_done:
+    ret
+
+
 dlclose_libz:
     mov     r14, rsp                ; save rsp
     and     rsp, -16                ; 16 bytes alignment
@@ -914,12 +993,12 @@ fix_ld:
     xor     rcx, rcx
     mov     cx, word [rdi + _Elf64_Ehdr.e_phnum]
 
-search_pt_load:
+fix_ld_search_pt_load:
     mov     edx, dword [rbx]                                ; p_type
     cmp     edx, PT_LOAD
-    jne     search_pt_load_next_2
+    jne     fix_ld_search_pt_load_next_2
 
-fix_load_segment:
+fix_ld_fix_load_segment:
     mov     r14, rdi
     mov     r13, rsi
 
@@ -937,25 +1016,27 @@ fix_load_segment:
     mov     eax, dword [rbx + _Elf64_Phdr.p_flags]          ; flags
     xor     rdx, rdx                                        ; 3rd argument: unsigned long prot
 
-check_pf_r:
+fix_ld_check_pf_r:
     mov     ecx, eax
     and     ecx, PF_R
-    jz      check_pf_x
+    jz      fix_ld_check_pf_x
     or      edx, PROT_READ
 
-check_pf_x:
+fix_ld_check_pf_x:
     mov     ecx, eax
     and     ecx, PF_X
-    jz      check_pf_w
+    jz      fix_ld_check_pf_w
     or      edx, PROT_EXEC
 
-check_pf_w:
+fix_ld_check_pf_w:
     mov     ecx, eax
     and     ecx, PF_W
-    jz      check_pf_done_2
+    jz      fix_ld_check_pf_done_2
     or      edx, PROT_WRITE
 
-check_pf_done_1:
+    add     rsi, qword [rbx + _Elf64_Phdr.p_align]          ; size + align
+
+fix_ld_check_pf_done_1:
     mov     rdi, qword [rbx + _Elf64_Phdr.p_vaddr]
     add     rdi, r14                                        ; 1st argument: unsigned long start
     mov     r12, qword [rbx + _Elf64_Phdr.p_align]          ; align
@@ -965,61 +1046,58 @@ check_pf_done_1:
     mov     rax, 0xa                                        ; sys_mprotect
     syscall
 
+    ; rdi 1st argument: start address
+    ; rsi 2nd argument: size
     call    write_zero_memory
 
-    mov     r8, qword [rbx + _Elf64_Phdr.p_offset]
-    mov     r9, qword [rbx + _Elf64_Phdr.p_vaddr]
-    add     r9, r14
-    mov     r10, qword [rbx + _Elf64_Phdr.p_filesz]
-    mov     r11, qword [rbx + _Elf64_Phdr.p_memsz]
-
-    mov     rdi, r13                    ; 1st argument: const char *filename
-    mov     rsi, O_RDONLY               ; 2nd argument: int flags
-    mov     rdx, 0x0                    ; 3rd argument: int mode
-    mov     rax, 0x2                    ; sys_open
+    mov     rdi, r13                                        ; 1st argument: const char *filename
+    mov     rsi, O_RDONLY                                   ; 2nd argument: int flags
+    mov     rdx, 0x0                                        ; 3rd argument: int mode
+    mov     rax, 0x2                                        ; sys_open
     syscall
-    mov     r12, rax                    ; fd
+    mov     r12, rax                                        ; fd
 
-    mov     rdx, SEEK_SET               ; 3rd argument: unsigned int origin
-    mov     rsi, r8                     ; 2nd argument: off_t offset
-    mov     rdi, r12                    ; 1st argument: unsigned int fd
-    mov     rax, 0x8                    ; sys_lseek
+    mov     rdx, SEEK_SET                                   ; 3rd argument: unsigned int origin
+    mov     rsi, qword [rbx + _Elf64_Phdr.p_offset]         ; 2nd argument: off_t offset
+    mov     rdi, r12                                        ; 1st argument: unsigned int fd
+    mov     rax, 0x8                                        ; sys_lseek
     syscall
 
-    mov     rdx, r10                    ; 3rd argument: size_t count
-    mov     rsi, r9                     ; 2nd argument: char *buf
-    mov     rdi, r12                    ; 1st argument: unsigned int fd
-    mov     rax, 0x0                    ; sys_read
+    mov     rdx, qword [rbx + _Elf64_Phdr.p_filesz]         ; 3rd argument: size_t count
+    mov     rsi, qword [rbx + _Elf64_Phdr.p_vaddr]
+    add     rsi, r14                                        ; 2nd argument: char *buf
+    mov     rdi, r12                                        ; 1st argument: unsigned int fd
+    mov     rax, 0x0                                        ; sys_read
     syscall
 
     mov     rdi, r12                    ; 1st argument: unsigned int fd
     mov     rax, 0x3                    ; sys_close
     syscall
 
-    jmp     search_pt_load_next_1
+    jmp     fix_ld_search_pt_load_next_1
 
-check_pf_done_2:
+fix_ld_check_pf_done_2:
     mov     rdi, qword [rbx + _Elf64_Phdr.p_vaddr]
     add     rdi, r14                                        ; 1st argument: unsigned long start
-    mov     r13, qword [rbx + _Elf64_Phdr.p_align]          ; align
-    sub     r13, 1
-    not     r13
-    and     rdi, r13                                        ; align
+    mov     r12, qword [rbx + _Elf64_Phdr.p_align]          ; align
+    sub     r12, 1
+    not     r12
+    and     rdi, r12                                        ; align
     mov     rax, 0xa                                        ; sys_mprotect
     syscall
 
-search_pt_load_next_1:
+fix_ld_search_pt_load_next_1:
     pop     rax
     pop     rcx
     pop     rdx
     pop     rsi
     pop     rdi
 
-search_pt_load_next_2:
+fix_ld_search_pt_load_next_2:
     add     rbx, rax
     dec     rcx
     cmp     rcx, 0x0
-    jne     search_pt_load
+    jne     fix_ld_search_pt_load
 
 fix_ld_done:
     ret
