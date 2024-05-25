@@ -7,6 +7,10 @@ packer elf
 - nasm
 - libc libc.so.6
 - zlib 1.3.1 libz.so (compress, decompress)
+  
+  e.g. debian: zlib1g, zlib1g-dev
+
+  Note: If the version is different, you need to change a stub.asm file. (See [How to change libz version in stub.asm](https://github.com/shuichiro-endo/packer/tree/main/packer-elf#how-to-change-libz-version-in-stubasm).)
 
 I tested on Arch Linux and Debian (sid).
 
@@ -81,6 +85,7 @@ decompress_image:
 ;    mov     ebx, 0xf09e90de
 ;    xor     ebx, 0xdeadbeef
 ;    add     rax, rbx
+;    mov     qword [r15 - 0x38], rax ; 0x31 2e332e31 1.3.1 libz.so version
     mov     qword [r15 - 0x38], 0x33312e322e31 ; 0x33312e322e31 1.2.13 libz.so version
 
     mov     r14, rsp                ; save rsp
