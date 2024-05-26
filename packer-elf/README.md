@@ -10,7 +10,7 @@ packer elf
   
   e.g. debian: zlib1g, zlib1g-dev
 
-  Note: If the version is different, you need to change a stub.asm file. (See [How to change libz.so version in stub.asm](https://github.com/shuichiro-endo/packer/tree/main/packer-elf#how-to-change-libzso-version-in-stubasm).)
+  Note: If the version is different, you need to change it in stub.asm. (See [How to change libz.so version in stub.asm](https://github.com/shuichiro-endo/packer/tree/main/packer-elf#how-to-change-libzso-version-in-stubasm).)
 
 I tested on Arch Linux and Debian (sid).
 
