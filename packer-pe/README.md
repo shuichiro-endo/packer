@@ -3,6 +3,7 @@ packer pe
 
 ## Installation
 ### Install dependencies
+- x86_64 architecture, 64bit, little endian
 - visual studio community (Desktop development with C++)
     1. install Desktop development with C++
 - nasm

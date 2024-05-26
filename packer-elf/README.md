@@ -3,6 +3,7 @@ packer elf
 
 ## Installation
 ### Install dependencies
+- x86_64 architecture, 64bit, little endian
 - c++ compiler (g++)
 - nasm
 - libc libc.so.6
