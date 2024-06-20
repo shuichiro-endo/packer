@@ -1,10 +1,7 @@
 # packer
 packer
 
-This is an experimental deliverable.
-
-I made it as I went along.
-Don't worry about not using rbp register or local variables in assembly.
+These are experimental results.
 
 ## License
 This project is licensed under the MIT License.
