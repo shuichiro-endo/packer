@@ -1009,7 +1009,7 @@ fix_ld_check_pf_w:
     jz      fix_ld_check_pf_done_2
     or      edx, PROT_WRITE
 
-    add     rsi, qword [rbx + _Elf64_Phdr.p_align]          ; size + align
+;   add     rsi, qword [rbx + _Elf64_Phdr.p_align]          ; size + align
 
 fix_ld_check_pf_done_1:
     mov     rdi, qword [rbx + _Elf64_Phdr.p_vaddr]
