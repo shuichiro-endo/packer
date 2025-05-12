@@ -32,6 +32,109 @@ usage   : ./packer elf_file deflate_compression_level(1-9)
 example : ./packer main 9
 ```
 
+## Example
+```
+> cd packer/packer-elf
+
+> cp /usr/bin/ls ls
+
+> file ls
+ls: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=d1f6561268de19201ceee260d3a4f6662e1e70dd, for GNU/Linux 4.4.0, stripped
+
+> ./packer ls 9
+[I] deflate_compression_level:9
+[I] output_elf_file_name: ls_packed
+[I] read ls file
+[I] ls file size:142016
+[I] check ls file
+[I] dump mapped image
+[I] compress image data
+[I] read stub.bin file
+[I] link data
+[I] write ls_packed file
+[I] ls_packed file size: 74000 bytes
+
+> chmod 755 ls_packed
+
+> file ls_packed
+ls_packed: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, no section header
+
+> readelf -a ls_packed
+ELF Header:
+Magic:   7f 45 4c 46 02 01 01 00 00 00 00 00 00 00 00 00 
+Class:                             ELF64
+Data:                              2's complement, little endian
+Version:                           1 (current)
+OS/ABI:                            UNIX - System V
+ABI Version:                       0
+Type:                              DYN (Position-Independent Executable file)
+Machine:                           Advanced Micro Devices X86-64
+Version:                           0x1
+Entry point address:               0x35000
+Start of program headers:          64 (bytes into file)
+Start of section headers:          0 (bytes into file)
+Flags:                             0x0
+Size of this header:               64 (bytes)
+Size of program headers:           56 (bytes)
+Number of program headers:         7
+Size of section headers:           0 (bytes)
+Number of section headers:         0
+Section header string table index: 0
+
+There are no sections in this file.
+
+There are no section groups in this file.
+
+Program Headers:
+Type           Offset             VirtAddr           PhysAddr
+FileSiz            MemSiz              Flags  Align
+PHDR           0x0000000000000040 0x0000000000000040 0x0000000000000040
+0x0000000000000188 0x0000000000000188  R      0x8
+INTERP         0x00000000000001c8 0x00000000000001c8 0x00000000000001c8
+0x000000000000001c 0x000000000000001c  R      0x1
+[Requesting program interpreter: /lib64/ld-linux-x86-64.so.2]
+LOAD           0x0000000000000000 0x0000000000000000 0x0000000000000000
+0x000000000000020b 0x0000000000025000  RW     0x1000
+LOAD           0x0000000000001000 0x0000000000035000 0x0000000000035000
+0x0000000000000b45 0x0000000000000b45  R E    0x1000
+LOAD           0x0000000000002000 0x0000000000036000 0x0000000000036000
+0x000000000000f01a 0x000000000000f01a  R      0x1000
+LOAD           0x0000000000012000 0x0000000000046000 0x0000000000046000
+0x0000000000000110 0x0000000000000110  RW     0x1000
+DYNAMIC        0x0000000000012000 0x0000000000046000 0x0000000000046000
+0x0000000000000110 0x0000000000000110  RW     0x8
+
+Dynamic section at offset 0x12000 contains 17 entries:
+Tag        Type                         Name/Value
+0x0000000000000001 (NEEDED)             Shared library: [libc.so.6]
+0x000000000000000c (INIT)               0x0
+0x000000000000000d (FINI)               0x0
+0x0000000000000019 (INIT_ARRAY)         0x0
+0x000000000000001b (INIT_ARRAYSZ)       0 (bytes)
+0x000000000000001a (FINI_ARRAY)         0x0
+0x000000000000001c (FINI_ARRAYSZ)       0 (bytes)
+0x0000000000000005 (STRTAB)             0x200
+0x0000000000000006 (SYMTAB)             0x1e8
+0x000000000000000a (STRSZ)              11 (bytes)
+0x000000000000000b (SYMENT)             24 (bytes)
+0x0000000000000007 (RELA)               0x0
+0x0000000000000008 (RELASZ)             0 (bytes)
+0x0000000000000009 (RELAENT)            24 (bytes)
+0x000000000000001e (FLAGS)              BIND_NOW
+0x000000006ffffffb (FLAGS_1)            Flags: NOW PIE
+0x0000000000000000 (NULL)               0x0
+
+There are no relocations in this file.
+No processor specific unwind information to decode
+
+Dynamic symbol information is not available for displaying symbols.
+
+No version information found in this file.
+
+> ./ls_packed
+README.md  compile.sh  ls  ls_packed  packer  packer.cpp  stub.asm  stub.bin  stub.inc
+```
+
 ## Notes
 ### How to change libc.so filename in packer.cpp
 1. check libc.so filename
