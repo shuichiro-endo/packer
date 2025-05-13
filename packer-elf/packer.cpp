@@ -117,8 +117,8 @@ static bool check_elf_file(char *buffer)
     }
 
     if(elf_header_pointer->e_ident[EI_OSABI] != ELFOSABI_SYSV){
-        printf("[E] not SYSV\n");
-        return false;
+        printf("[W] not SYSV\n");
+//        return false;
     }
 
     if(!(elf_header_pointer->e_type == ET_EXEC || elf_header_pointer->e_type == ET_DYN)){
@@ -593,13 +593,13 @@ int main(int argc, char **argv)
 
     deflate_compression_level = atoi(argv[2]);
     if(deflate_compression_level < 1 || deflate_compression_level > 9){
-        printf("[W] invalid compression_level:%d\n", deflate_compression_level);
+        printf("[W] invalid compression_level: %d\n", deflate_compression_level);
         deflate_compression_level = Z_DEFAULT_COMPRESSION;
     }
     if(deflate_compression_level == Z_DEFAULT_COMPRESSION){
-        printf("[I] deflate_compression_level:Z_DEFAULT_COMPRESSION(%d)\n", Z_DEFAULT_COMPRESSION);
+        printf("[I] deflate_compression_level: Z_DEFAULT_COMPRESSION(%d)\n", Z_DEFAULT_COMPRESSION);
     }else{
-        printf("[I] deflate_compression_level:%d\n", deflate_compression_level);
+        printf("[I] deflate_compression_level: %d\n", deflate_compression_level);
     }
 
 
@@ -627,7 +627,7 @@ int main(int argc, char **argv)
         printf("[E] input elf file size error: %ld bytes\n", input_elf_size);
         goto error;
     }
-    printf("[I] %s file size:%ld\n", input_elf_file_name, input_elf_size);
+    printf("[I] %s file size: %ld bytes\n", input_elf_file_name, input_elf_size);
 
 
     printf("[I] check %s file\n", input_elf_file_name);
