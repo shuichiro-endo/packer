@@ -42,10 +42,10 @@ example : ./packer main 9
 ls: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically linked, interpreter /lib64/ld-linux-x86-64.so.2, BuildID[sha1]=d1f6561268de19201ceee260d3a4f6662e1e70dd, for GNU/Linux 4.4.0, stripped
 
 > ./packer ls 9
-[I] deflate_compression_level:9
+[I] deflate_compression_level: 9
 [I] output_elf_file_name: ls_packed
 [I] read ls file
-[I] ls file size:142016
+[I] ls file size: 142016 bytes
 [I] check ls file
 [I] dump mapped image
 [I] compress image data
