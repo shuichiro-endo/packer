@@ -21,7 +21,7 @@ _main:
     ; [ r15 + 0x30 ] save compressed data segment address
     ; [ r15 + 0x28 ] save compressed data segment size
     ; [ r15 + 0x20 ]
-    ; [ r15 + 0x18 ]
+    ; [ r15 + 0x18 ] save ld.so rw memory size
     ; [ r15 + 0x10 ] save libc.so base address
     ; [ r15 + 0x8  ] save ld.so base address
     sub     rsp, 0x50
@@ -72,6 +72,11 @@ _main:
     call    get_segment_address_size
     mov     qword [r15 + 0x30], rax                 ; compressed data segment address
     mov     qword [r15 + 0x28], rdx                 ; compressed data segment size
+
+    mov     rdi, qword [r15 + 0x40]                 ; decompress data segment address
+    mov     rsi, qword [r15 + 0x38]                 ; decompress data segment size
+    call    get_ld_rw_memory_size
+    mov     qword [r15 + 0x18], rax                 ; ld.so rw memory size
 
     mov     rdi, qword [r15 + 0x40]                 ; decompress data segment address
     mov     rsi, qword [r15 + 0x38]                 ; decompress data segment size
@@ -211,6 +216,197 @@ get_segment_address_size:
     ret
 
 
+get_ld_rw_memory_size:
+    ; readelf -a /lib64/ld-linux-x86-64.so.2
+    ;
+    ; LOAD           0x0000000000000000 0x0000000000000000 0x0000000000000000 0x0000000000000c88 0x0000000000000c88  R      0x1000
+    ; LOAD           0x0000000000001000 0x0000000000001000 0x0000000000001000 0x0000000000029675 0x0000000000029675  R E    0x1000
+    ; LOAD           0x000000000002b000 0x000000000002b000 0x000000000002b000 0x000000000000a778 0x000000000000a778  R      0x1000
+    ; LOAD           0x00000000000365a0 0x00000000000365a0 0x00000000000365a0 0x00000000000022ac 0x0000000000002d40  RW     0x1000
+    ; DYNAMIC        0x0000000000037e60 0x0000000000037e60 0x0000000000037e60 0x0000000000000170 0x0000000000000170  RW     0x8
+
+    ; /proc/self/maps
+    ;
+    ; 7f7ebc2e3000-7f7ebc2e4000 r--p 00000000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2
+    ; 7f7ebc2e4000-7f7ebc30e000 r-xp 00001000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2
+    ; 7f7ebc30e000-7f7ebc319000 r--p 0002b000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2
+    ; 7f7ebc319000-7f7ebc31b000 r--p 00036000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2  <---- ld rw memory
+    ; 7f7ebc31b000-7f7ebc31c000 rw-p 00038000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2  <---- ld rw memory
+    ; 7f7ebc31c000-7f7ebc31d000 rw-p 00000000 00:00 0                                              <---- ld rw memory
+
+    xor     rax, rax
+    mov     eax, 0xdedece8e
+    xor     eax, 0xdeadbeef
+    rol     rax, 32
+    xor     rbx, rbx
+    mov     ebx, 0xb382d883
+    xor     ebx, 0xdeadbeef
+    add     rax, rbx
+    push    rax                         ; 0x007370616d2f666c    lf/maps
+
+    xor     rax, rax
+    mov     eax, 0xbbde918c
+    xor     eax, 0xdeadbeef
+    rol     rax, 32
+    xor     rbx, rbx
+    mov     ebx, 0xb1dfcec0
+    xor     ebx, 0xdeadbeef
+    add     rax, rbx
+    push    rax                         ; 0x65732f636f72702f    /proc/se
+    mov     rax, rsp
+
+    push    rdi
+    push    rsi
+    mov     rdi, rax                    ; 1st argument: const char *filename
+    mov     rsi, O_RDONLY               ; 2nd argument: int flags
+    mov     rdx, 0x0                    ; 3rd argument: int mode
+    mov     rax, 0x2                    ; sys_open
+    syscall
+    pop     rsi
+    pop     rdi
+    add     rsp, 0x10
+
+    mov     rdx, rsi                    ; 3rd argument: size_t count
+    mov     rsi, rdi                    ; 2nd argument: char *buf
+    mov     rdi, rax                    ; 1st argument: unsigned int fd
+    mov     rax, 0x0                    ; sys_read
+    syscall
+    mov     rcx, rax
+
+    push    rcx
+    mov     rdi, rdi                    ; 1st argument: unsigned int fd
+    mov     rax, 0x3                    ; sys_close
+    syscall
+    pop     rcx
+
+    xor     rax, rax
+    mov     eax, 0xa6d8d086
+    xor     eax, 0xdeadbeef
+    rol     rax, 32
+    xor     rbx, rbx
+    mov     ebx, 0xb280da83
+    xor     ebx, 0xdeadbeef
+    add     rax, rbx
+    push    rax
+    mov     r14, rsp                    ; 0x78756e69 6c2d646c ld-linux
+    mov     rdi, rsi
+    xor     rax, rax
+    xor     rbx, rbx
+    xor     rdx, rdx
+
+search_ld_from_maps:
+    mov     al, byte [rdi]
+    inc     rdi
+    dec     rcx
+    cmp     rcx, 0x0
+    je      search_ld_from_maps_error
+    cmp     al, 0xa
+    je      search_ld_from_maps_return_char
+    mov     bl, byte [r14 + rdx]
+    cmp     al, bl
+    jne     search_ld_from_maps_reset_pos
+    cmp     rdx, 0x7                    ; 0-7 strlen("ld-linux")
+    je      search_ld_from_maps_done
+    inc     rdx
+    jmp     search_ld_from_maps
+
+search_ld_from_maps_return_char:
+    mov     rsi, rdi
+    xor     rdx, rdx
+    jmp     search_ld_from_maps
+
+search_ld_from_maps_reset_pos:
+    xor     rdx, rdx
+    jmp     search_ld_from_maps
+
+search_ld_from_maps_error:
+    add     rsp, 0x8
+    xor     rax, rax
+    ret
+
+search_ld_from_maps_done:
+    xor     rbx, rbx
+
+search_ld_rw_memory_from_maps:
+    mov     al, byte [rdi]
+    inc     rdi
+    dec     rcx
+    cmp     rcx, 0x0
+    je      search_ld_from_maps_error
+    cmp     al, 0xa
+    jne     search_ld_rw_memory_from_maps
+
+search_ld_rw_memory_from_maps_return_char:
+    mov     rsi, rdi
+    xor     rdx, rdx
+    inc     rbx                             ; count return char
+    cmp     rbx, 0x3                        ; 4th line
+    je      search_ld_rw_memory_from_maps_done_1
+    cmp     rbx, 0x4                        ; 5th line
+    je      search_ld_rw_memory_from_maps_done_2
+    cmp     rbx, 0x5                        ; 6th line
+    je      search_ld_rw_memory_from_maps_done_3
+    jmp     search_ld_rw_memory_from_maps
+
+search_ld_rw_memory_from_maps_done_1:
+    push    rdi
+    push    rcx
+
+    mov     rdi, rsi                        ; e.g. 7f7ebc319000-7f7ebc31b000 r--p 00036000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2
+    call    convert_char_to_long            ; 7f7ebc319000
+    push    rax
+
+    call    convert_char_to_long            ; 7f7ebc31b000
+
+    pop     rdx
+    sub     rax, rdx                        ; 7f7ebc31b000 - 7f7ebc319000 = 2000
+
+    pop     rcx
+    pop     rdi
+    push    rax                             ; 2000
+
+    jmp     search_ld_rw_memory_from_maps
+
+search_ld_rw_memory_from_maps_done_2:
+    push    rdi
+    push    rcx
+
+    mov     rdi, rsi                        ; e.g. 7f7ebc31b000-7f7ebc31c000 rw-p 00038000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2
+    call    convert_char_to_long            ; 7f7ebc31b000
+    push    rax
+
+    call    convert_char_to_long            ; 7f7ebc31c000
+
+    pop     rdx
+    sub     rax, rdx                        ; 7f7ebc31c000 - 7f7ebc31b000 = 1000
+
+    pop     rcx
+    pop     rdi
+
+    pop     rdx                             ; 2000
+    add     rax, rdx                        ; 1000 + 2000 = 3000
+    push    rax                             ; 3000
+
+    jmp     search_ld_rw_memory_from_maps
+
+search_ld_rw_memory_from_maps_done_3:
+    mov     rdi, rsi                        ; e.g. 7f7ebc31c000-7f7ebc31d000 rw-p 00000000 00:00 0
+    call    convert_char_to_long            ; 7f7ebc31c000
+    push    rax
+
+    call    convert_char_to_long            ; 7f7ebc31d000
+
+    pop     rdx
+    sub     rax, rdx                        ; 7f7ebc31d000 - 7f7ebc31c000 = 1000
+
+    pop     rdx                             ; 3000
+    add     rax, rdx                        ; 1000 + 3000 = 4000
+
+get_ld_rw_memory_size_done:
+    add     rsp, 0x8
+    ret
+
+
 get_libc_base_address:
     xor     rax, rax
     mov     eax, 0xdedece8e
@@ -251,9 +447,11 @@ get_libc_base_address:
     syscall
     mov     rcx, rax
 
+    push    rcx
     mov     rdi, rdi                    ; 1st argument: unsigned int fd
     mov     rax, 0x3                    ; sys_close
     syscall
+    pop     rcx
 
     xor     rax, rax
     mov     eax, 0xdec2cdc1
@@ -317,7 +515,9 @@ convert_char_to_long:
 get_charactor:
     mov     al, byte [rdi + rcx]
     inc     rcx
-    cmp     al, 0x2d
+    cmp     al, 0x20                    ; space
+    je      convert_char_to_long_done
+    cmp     al, 0x2d                    ; dash -
     je      convert_char_to_long_done
     cmp     al, 0x39
     jle     number
@@ -334,6 +534,7 @@ number:
 
 convert_char_to_long_done:
     mov     rax, rdx
+    add     rdi, rcx
     ret
 
 
@@ -1009,7 +1210,7 @@ fix_ld_check_pf_w:
     jz      fix_ld_check_pf_done_2
     or      edx, PROT_WRITE
 
-    add     rsi, qword [rbx + _Elf64_Phdr.p_align]          ; size + align
+    mov     rsi, qword [r15 + 0x18]                         ; ld rw memory size
 
 fix_ld_check_pf_done_1:
     mov     rdi, qword [rbx + _Elf64_Phdr.p_vaddr]
