@@ -217,20 +217,19 @@ get_segment_address_size:
 
 
 get_ld_rw_memory_size:
-    ; readelf -a /lib64/ld-linux-x86-64.so.2
-    ;
+    ; readelf -a /usr/lib/ld-linux-x86-64.so.2
+    ; Type           Offset             VirtAddr           PhysAddr           FileSiz            MemSiz              Flags  Align
     ; LOAD           0x0000000000000000 0x0000000000000000 0x0000000000000000 0x0000000000000c88 0x0000000000000c88  R      0x1000
     ; LOAD           0x0000000000001000 0x0000000000001000 0x0000000000001000 0x0000000000029675 0x0000000000029675  R E    0x1000
     ; LOAD           0x000000000002b000 0x000000000002b000 0x000000000002b000 0x000000000000a778 0x000000000000a778  R      0x1000
     ; LOAD           0x00000000000365a0 0x00000000000365a0 0x00000000000365a0 0x00000000000022ac 0x0000000000002d40  RW     0x1000
     ; DYNAMIC        0x0000000000037e60 0x0000000000037e60 0x0000000000037e60 0x0000000000000170 0x0000000000000170  RW     0x8
 
-    ; /proc/self/maps
-    ;
+    ; cat /proc/self/maps
     ; 7f7ebc2e3000-7f7ebc2e4000 r--p 00000000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2
     ; 7f7ebc2e4000-7f7ebc30e000 r-xp 00001000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2
     ; 7f7ebc30e000-7f7ebc319000 r--p 0002b000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2
-    ; 7f7ebc319000-7f7ebc31b000 r--p 00036000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2  <---- ld rw memory
+    ; 7f7ebc319000-7f7ebc31b000 r--p 00036000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2  <---- ld rw memory 7f7ebc319000 < 7f7ebc3195a0 (7f7ebc2e3000 + 365a0) < 7f7ebc31b000
     ; 7f7ebc31b000-7f7ebc31c000 rw-p 00038000 fd:02 33819981        /usr/lib/ld-linux-x86-64.so.2  <---- ld rw memory
     ; 7f7ebc31c000-7f7ebc31d000 rw-p 00000000 00:00 0                                              <---- ld rw memory
 
